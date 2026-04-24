@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<body>
+
+<div class="container">
+  <h1>Tạo Bài Thi</h1>
+
+  <label>Tên bài thi</label>
+  <input type="text" id="examTitle" placeholder="Nhập tên bài thi">
+
+  <div id="questions"></div>
+
+  <button class="btn btn-add" onclick="addQuestion()">+ Thêm câu hỏi</button>
+
+  <button class="btn btn-submit" onclick="submitExam()">Lưu bài thi</button>
+</div>
+
+<script>
+  let questionCount = 0;
+
+  function addQuestion() {
+    questionCount++;
+
+    const qDiv = document.createElement('div');
+    qDiv.className = 'question';
+
+    qDiv.innerHTML = `
+      <label>Câu hỏi ${questionCount}</label>
+      <textarea placeholder="Nhập câu hỏi"></textarea>
+
+      <label>Đáp án</label>
+      <div class="option">
+        <input type="radio" name="correct${questionCount}">
+        <input type="text" placeholder="Đáp án A">
+      </div>
+      <div class="option">
+        <input type="radio" name="correct${questionCount}">
+        <input type="text" placeholder="Đáp án B">
+      </div>
+      <div class="option">
+        <input type="radio" name="correct${questionCount}">
+        <input type="text" placeholder="Đáp án C">
+      </div>
+      <div class="option">
+        <input type="radio" name="correct${questionCount}">
+        <input type="text" placeholder="Đáp án D">
+      </div>
+    `;
+
+    document.getElementById('questions').appendChild(qDiv);
+  }
+
+  function submitExam() {
+    const title = document.getElementById('examTitle').value;
+    const questions = document.querySelectorAll('.question');
+
+    let data = {
+      title: title,
+      questions: []
+    };
+
+    questions.forEach((q, index) => {
+      const text = q.querySelector('textarea').value;
+      const options = q.querySelectorAll('.option input[type="text"]');
+      const radios = q.querySelectorAll('input[type="radio"]');
+
+      let answers = [];
+      let correct = -1;
+
+      options.forEach((opt, i) => {
+        answers.push(opt.value);
+        if (radios[i].checked) correct = i;
+      });
+
+      data.questions.push({
+        question: text,
+        answers: answers,
+        correct: correct
+      });
+    });
+
+    console.log(data);
+    alert('Đã lưu bài thi! (Xem console)');
+  }
+</script>
+
+</body>
+</html>
