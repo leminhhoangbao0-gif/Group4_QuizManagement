@@ -1,0 +1,268 @@
+<<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Online Quiz</title>
+<style>
+body {
+    margin: 0;
+    font-family: "Segoe UI", sans-serif;
+    display: flex;
+    background: #f0f2f5;
+}
+.sidebar {
+    width: 220px;
+    background: #1e293b;
+    color: white;
+    padding: 20px;
+    height: 100vh;
+}
+.question-nav {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+.q-btn {
+    padding: 10px;
+    text-align: center;
+    border-radius: 6px;
+    cursor: pointer;
+    background: #334155;
+}
+.q-btn.answered { background: #22c55e; }
+.q-btn.flagged { background: orange; }
+
+/* MAIN */
+.main { flex: 1; padding: 30px; }
+
+.header {
+    display: flex;
+    justify-content: space-between;
+}
+.timer { color: red; }
+.fade {
+    opacity: 0;
+    transform: translateX(20px);
+    transition: 0.3s;
+}
+.fade.show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.question-box {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+}
+
+.option {
+    padding: 10px;
+    margin: 8px 0;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.option:hover { background: #f1f5f9; }
+.selected {
+    background: #dbeafe;
+    border: 2px solid #3b82f6;
+}
+
+.buttons {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+}
+
+button {
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+}
+
+.submit { background: #22c55e; color: white; }
+.flag { background: orange; color: white; }
+
+</style>
+</head>
+
+<body>
+
+<div class="sidebar">
+    <h2>Questions</h2>
+    <div id="nav" class="question-nav"></div>
+</div>
+
+<div class="main">
+
+    <div class="header">
+        <h2>Quiz</h2>
+        <div class="timer">⏱ <span id="time">15:00</span></div>
+    </div>
+
+    <div id="questionContainer" class="fade show"></div>
+
+    <div class="buttons">
+        <button class="flag" onclick="flag()">Flag</button>
+        <button class="submit" id="submitBtn" onclick="submitQuiz()">Submit</button>
+    </div>
+
+</div>
+
+<script>
+
+// ===== DATA =====
+const questions = [
+    { id: 1, text: "1 + 1 = ?", options: ["1", "2", "3", "4"] },
+    { id: 2, text: "Capital of France?", options: ["London", "Berlin", "Paris", "Rome"] }
+];
+
+let current = 0;
+let answers = {};
+let flagged = {};
+
+// ===== LOAD SAVED =====
+function loadSaved() {
+    let a = localStorage.getItem("answers");
+    let f = localStorage.getItem("flagged");
+
+    if (a) answers = JSON.parse(a);
+    if (f) flagged = JSON.parse(f);
+}
+
+// ===== NAV =====
+function loadNav() {
+    let nav = document.getElementById("nav");
+    nav.innerHTML = "";
+
+    questions.forEach((q, i) => {
+        let btn = document.createElement("div");
+        btn.className = "q-btn";
+
+        if (answers[q.id]) btn.classList.add("answered");
+        if (flagged[q.id]) btn.classList.add("flagged");
+
+        btn.innerText = i + 1;
+        btn.onclick = () => loadQuestion(i);
+
+        nav.appendChild(btn);
+    });
+}
+
+// ===== LOAD QUESTION =====
+function loadQuestion(index) {
+    current = index;
+    let q = questions[index];
+
+    let container = document.getElementById("questionContainer");
+    container.classList.remove("show");
+
+    setTimeout(() => {
+        let html = `<div class="question-box fade show">
+            <h3>Question ${index + 1}</h3>
+            <p>${q.text}</p>`;
+
+        q.options.forEach((opt, i) => {
+            let letter = String.fromCharCode(65 + i);
+            let selected = answers[q.id] === letter ? "selected" : "";
+
+            html += `
+            <div class="option ${selected}" onclick="selectAnswer(${q.id}, '${letter}')">
+                ${letter}. ${opt}
+            </div>`;
+        });
+
+        html += `</div>`;
+
+        container.innerHTML = html;
+        container.classList.add("show");
+    }, 150);
+
+    loadNav();
+
+    // CHANGE BUTTON
+    let btn = document.getElementById("submitBtn");
+    if (index === questions.length - 1) {
+        btn.innerText = "Finish";
+    } else {
+        btn.innerText = "Submit";
+    }
+}
+
+// ===== SELECT =====
+function selectAnswer(qid, ans) {
+    answers[qid] = ans;
+    localStorage.setItem("answers", JSON.stringify(answers));
+    loadQuestion(current);
+}
+
+// ===== FLAG =====
+function flag() {
+    let qid = questions[current].id;
+    flagged[qid] = !flagged[qid];
+
+    localStorage.setItem("flagged", JSON.stringify(flagged));
+    loadNav();
+}
+
+// ===== TIMER =====
+let time = 15 * 60;
+
+setInterval(() => {
+    let m = Math.floor(time / 60);
+    let s = time % 60;
+
+    document.getElementById("time").innerText =
+        `${m}:${s < 10 ? "0" : ""}${s}`;
+
+    if (time === 60) alert(" Only 1 minute left!");
+    if (time <= 0) submitQuiz();
+
+    time--;
+}, 1000);
+
+// ===== SUBMIT =====
+function submitQuiz() {
+
+    //  CHECK chưa làm hết
+    if (Object.keys(answers).length < questions.length) {
+        if (!confirm("You haven't finished all questions. Submit anyway?")) {
+            return;
+        }
+    }
+
+    let result = "";
+
+    for (let q of questions) {
+        if (answers[q.id]) {
+            result += `Q${q.id}:${answers[q.id]},`;
+        }
+    }
+
+    result = result.slice(0, -1);
+
+    console.log(result);
+
+    fetch("/submit", {
+        method: "POST",
+        body: result
+    });
+
+    localStorage.removeItem("answers");
+    localStorage.removeItem("flagged");
+
+    //  CHUYỂN TRANG
+    window.location.href = "result.html";
+}
+
+// ===== INIT =====
+loadSaved();
+loadQuestion(0);
+
+</script>
+
+</body>
+</html>
