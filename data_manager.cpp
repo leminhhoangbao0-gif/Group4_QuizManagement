@@ -3,6 +3,7 @@
 #include <sstream>
 #include <iostream>
 #include <sys/stat.h>
+#include <direct.h>  // Thêm dòng này để sửa lỗi _mkdir
 
 void User::print() const {
     std::cout << "[User] id=" << id
