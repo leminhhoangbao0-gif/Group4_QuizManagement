@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Student Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #f4f7f6;
+            padding: 40px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .notif-panel {
+            background: #fff9db;
+            border: 1px solid #fab005;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+        }
+
+        .notif-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #f1f3f5;
+            font-size: 14px;
+            color: #444;
+        }
+
+            .notif-item:last-child {
+                border-bottom: none;
+            }
+
+        .class-list {
+            margin-top: 20px;
+        }
+
+        .class-item {
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .enter-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+            .enter-btn:hover {
+                background: #218838;
+            }
+
+        .join-box {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            max-width: 100%;
+            margin-top: 30px;
+        }
+
+            .join-box input {
+                width: 100%;
+                padding: 10px;
+                margin-bottom: 10px;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                box-sizing: border-box;
+            }
+
+        .join-btn {
+            width: 100%;
+            padding: 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Welcome, Student</h1>
+
+        <h2> Thông báo của bạn</h2>
+        <div class="notif-panel">
+            {{NOTIFICATION_LIST}}
+        </div>
+
+        <h2> Lớp học của bạn</h2>
+        <div class="class-list">
+            {{CLASS_LIST}}
+        </div>
+
+        <div class="join-box">
+            <h3>Tham gia lớp học mới</h3>
+            <form action="/join_class" method="POST">
+                <input type="number" name="class_id" placeholder="Nhập ID Lớp" >
+                <input type="text" name="passcode" placeholder="Nhập Mã tham gia (Passcode)" required>
+                <button type="submit" class="join-btn">Tham gia</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
