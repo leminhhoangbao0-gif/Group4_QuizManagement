@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Qu?n l� L?p h?c</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #f4f7f6;
+            padding: 40px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+        }
+
+        button {
+            color: white;
+            padding: 12px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+            font-weight: bold;
+        }
+
+        .card {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/teacher" style="text-decoration: none; color: #007bff;">&larr; Quay l?i Menu</a>
+        <h2>Quản lí Lớp học</h2>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <!-- Form: Create Class -->
+            <div class="card">
+                <h3>1. Tạo Lớp Mới</h3>
+                <form action="/create_class" method="POST">
+                    <label>T�n L?p h?c:</label>
+                    <input type="text" name="class_name" placeholder="VD: C++ Nâng cao" required>
+                    <label>M� tham gia (Passcode - T�y ch?n):</label>
+                    <input type="text" name="passcode" placeholder="VD: pass123">
+                    <button type="submit" style="background: #007bff;">T?o L?p</button>
+                </form>
+            </div>
+
+            <!-- Form: Invite Student -->
+            <div class="card">
+                <h3>2. Học sinh vào Lớp</h3>
+                <p style="font-size: 13px; color: gray;">(Không cần Passcode)</p>
+                <form action="/invite_student" method="POST">
+                    <label>ID Lớp học:</label>
+                    <input type="number" name="class_id" placeholder="VD: 1" required>
+                    <label>Username H?c sinh:</label>
+                    <input type="text" name="student_username" placeholder="VD: hocsinh01" required>
+                    <button type="submit" style="background: #28a745;">Th�m H?c sinh</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
