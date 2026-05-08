@@ -1,306 +1,376 @@
 #include "data_manager.h"
-#include <fstream>
-#include <sstream>
+#include <mysql.h>
 #include <iostream>
-#include <sys/stat.h>
-#include <direct.h> 
-void User::print() const {
-    std::cout << "[User] id=" << id
-              << " | username=" << username
-              << " | role=" << role
-              << " | fullname=" << fullname << "\n";
-}
 
-void Question::print() const {
-    std::cout << "[Question] id=" << id
-              << " | quizId=" << quizId
-              << " | correct=" << correctAnswer
-              << " | content=" << content << "\n";
-}
+using namespace std;
 
-void Quiz::print() const {
-    std::cout << "[Quiz] id=" << id
-              << " | title=" << title
-              << " | teacherId=" << teacherId
-              << " | duration=" << durationMinutes << "min\n";
-}
+MYSQL* conn;
 
+bool initDatabase() {
+    conn = mysql_init(0);
 
-// Xu ly dung truong hop: "noi dung co, dau phay"
-std::vector<std::string> splitCSV(const std::string& line) {
-    std::vector<std::string> result;
-    std::string field;
-    bool inQuotes = false;
+    conn = mysql_real_connect(conn, "localhost", "root", "H24vanban$", "quiz_system", 3306, NULL, 0);
 
-    for (size_t i = 0; i < line.size(); ++i) {
-        char c = line[i];
-        if (c == '"') {
-            inQuotes = !inQuotes;
-        } else if (c == ',' && !inQuotes) {
-            result.push_back(field);
-            field.clear();
-        } else {
-            field += c;
-        }
+    if (conn) {
+        cout << "Connected to MySQL successfully!" << endl;
+        return true;
     }
-    result.push_back(field);
-    return result;
-}
-
-// Boc chuoi trong ngoac kep neu chuoi chua dau phay
-static std::string quoteCSV(const std::string& s) {
-    if (s.find(',') == std::string::npos && s.find('"') == std::string::npos)
-        return s;
-    std::string out = "\"";
-    for (char c : s) {
-        if (c == '"') out += "\"\"";
-        else out += c;
+    else {
+        cout << "MySQL Connection Failed: " << mysql_error(conn) << endl;
+        return false;
     }
-    out += "\"";
-    return out;
 }
 
-
-void initDataFiles() {
-#ifdef _WIN32
-    _mkdir("data");
-#else
-    mkdir("data", 0755);
-#endif
-
-    auto createIfNotExists = [](const std::string& path, const std::string& header) {
-        std::ifstream check(path);
-        if (!check.good()) {
-            std::ofstream f(path);
-            if (f.is_open()) f << header << "\n";
-        }
-    };
-
-    createIfNotExists(FILE_USERS,     "id,username,password,role,fullname");
-    createIfNotExists(FILE_QUIZZES,   "id,title,teacherId,durationMinutes,createdDate");
-    createIfNotExists(FILE_QUESTIONS, "id,quizId,content,optionA,optionB,optionC,optionD,correctAnswer");
-    createIfNotExists(FILE_RESULTS,   "studentId,quizId,score,totalQuestions,correctCount,submittedAt");
-}
-
-
-int getNextId(const std::string& filename) {
-    std::ifstream f(filename);
-    if (!f.is_open()) return 1;
-    std::string line;
-    std::getline(f, line);  // bo header
-    int maxId = 0;
-    while (std::getline(f, line)) {
-        if (line.empty()) continue;
-        auto fields = splitCSV(line);
-        if (!fields.empty()) {
-            try { int id = std::stoi(fields[0]); if (id > maxId) maxId = id; }
-            catch (...) {}
-        }
+void closeDatabase() {
+    if (conn) {
+        mysql_close(conn);
     }
-    return maxId + 1;
 }
-
 
 // ---- User ----
 
-std::vector<User> loadUsers() {
-    std::vector<User> users;
-    std::ifstream f(FILE_USERS);
-    if (!f.is_open()) return users;
-    std::string line;
-    std::getline(f, line);
-    while (std::getline(f, line)) {
-        if (line.empty()) continue;
-        auto col = splitCSV(line);
-        if (col.size() < 5) continue;
-        users.push_back({std::stoi(col[0]), col[1], col[2], col[3], col[4]});
-    }
-    return users;
-}
-
-bool saveUsers(const std::vector<User>& users) {
-    std::ofstream f(FILE_USERS);
-    if (!f.is_open()) return false;
-    f << "id,username,password,role,fullname\n";
-    for (const auto& u : users)
-        f << u.id << "," << quoteCSV(u.username) << "," << quoteCSV(u.password)
-          << "," << quoteCSV(u.role) << "," << quoteCSV(u.fullname) << "\n";
-    return true;
-}
-
 bool addUser(const User& newUser) {
-    User u = newUser;
-    u.id = getNextId(FILE_USERS);
-    std::ofstream f(FILE_USERS, std::ios::app);
-    if (!f.is_open()) return false;
-    f << u.id << "," << quoteCSV(u.username) << "," << quoteCSV(u.password)
-      << "," << quoteCSV(u.role) << "," << quoteCSV(u.fullname) << "\n";
+    string query = "INSERT INTO users (username, password, role, fullname) VALUES ('" +
+        newUser.username + "', '" + newUser.password + "', '" +
+        newUser.role + "', '" + newUser.fullname + "')";
+
+    if (mysql_query(conn, query.c_str())) {
+        cout << "Error adding user: " << mysql_error(conn) << endl;
+        return false;
+    }
     return true;
 }
 
-User findUserByLogin(const std::string& username, const std::string& password) {
-    for (const auto& u : loadUsers())
-        if (u.checkLogin(username, password)) return u;
-    User notFound; notFound.id = -1; return notFound;
+User findUserByLogin(const string& username, const string& password) {
+    User u;
+    u.id = -1; // Default to -1 (not found)
+
+    string query = "SELECT id, username, password, role, fullname FROM users WHERE username = '" +
+        username + "' AND password = '" + password + "'";
+
+    if (mysql_query(conn, query.c_str())) return u;
+
+    MYSQL_RES* res = mysql_store_result(conn);
+    if (res) {
+        MYSQL_ROW row = mysql_fetch_row(res);
+        if (row) {
+            u.id = stoi(row[0]);
+            u.username = row[1];
+            u.password = row[2];
+            u.role = row[3];
+            u.fullname = row[4];
+        }
+        mysql_free_result(res);
+    }
+    return u;
 }
 
 User findUserById(int userId) {
-    for (const auto& u : loadUsers())
-        if (u.id == userId) return u;
-    User notFound; notFound.id = -1; return notFound;
-}
+    User u;
+    u.id = -1;
+    string query = "SELECT id, username, password, role, fullname FROM users WHERE id = " + to_string(userId);
 
+    if (mysql_query(conn, query.c_str())) return u;
+
+    MYSQL_RES* res = mysql_store_result(conn);
+    if (res) {
+        MYSQL_ROW row = mysql_fetch_row(res);
+        if (row) {
+            u.id = stoi(row[0]);
+            u.username = row[1];
+            u.password = row[2];
+            u.role = row[3];
+            u.fullname = row[4];
+        }
+        mysql_free_result(res);
+    }
+    return u;
+}
 
 // ---- Quiz ----
 
-std::vector<Quiz> loadQuizzes() {
-    std::vector<Quiz> quizzes;
-    std::ifstream f(FILE_QUIZZES);
-    if (!f.is_open()) return quizzes;
-    std::string line;
-    std::getline(f, line);
-    while (std::getline(f, line)) {
-        if (line.empty()) continue;
-        auto col = splitCSV(line);
-        if (col.size() < 5) continue;
-        quizzes.push_back({std::stoi(col[0]), col[1], std::stoi(col[2]),
-                           std::stoi(col[3]), col[4]});
+int addQuiz(const Quiz& newQuiz) {
+
+    string query = "INSERT INTO quizzes (title, teacher_id, duration_minutes, createdDate) VALUES ('" +
+        newQuiz.title + "', " +
+        to_string(newQuiz.teacherId) + ", " +
+        to_string(newQuiz.durationMinutes) + ", CURDATE())";
+
+    if (mysql_query(conn, query.c_str())) {
+        cout << "Error adding quiz: " << mysql_error(conn) << endl;
+        return -1;
+    }
+
+    int generated_id = (int)mysql_insert_id(conn);
+    return generated_id;
+}
+
+vector<Quiz> getQuizzesByTeacher(int teacherId) {
+    vector<Quiz> quizzes;
+    string query = "SELECT id, title, teacher_id, duration_minutes, createdDate FROM quizzes WHERE teacher_id = " + to_string(teacherId);
+
+    if (mysql_query(conn, query.c_str())) return quizzes;
+
+    MYSQL_RES* res = mysql_store_result(conn);
+    if (res) {
+        MYSQL_ROW row;
+        while ((row = mysql_fetch_row(res))) {
+            Quiz q;
+            q.id = stoi(row[0]);
+            q.title = row[1];
+            q.teacherId = stoi(row[2]);
+            q.durationMinutes = stoi(row[3]);
+            q.createdDate = row[4] ? row[4] : "";
+            quizzes.push_back(q);
+        }
+        mysql_free_result(res);
     }
     return quizzes;
 }
 
-bool saveQuizzes(const std::vector<Quiz>& quizzes) {
-    std::ofstream f(FILE_QUIZZES);
-    if (!f.is_open()) return false;
-    f << "id,title,teacherId,durationMinutes,createdDate\n";
-    for (const auto& q : quizzes)
-        f << q.id << "," << quoteCSV(q.title) << "," << q.teacherId
-          << "," << q.durationMinutes << "," << quoteCSV(q.createdDate) << "\n";
-    return true;
-}
-
-bool addQuiz(const Quiz& newQuiz) {
-    Quiz q = newQuiz;
-    q.id = getNextId(FILE_QUIZZES);
-    std::ofstream f(FILE_QUIZZES, std::ios::app);
-    if (!f.is_open()) return false;
-    f << q.id << "," << quoteCSV(q.title) << "," << q.teacherId
-      << "," << q.durationMinutes << "," << quoteCSV(q.createdDate) << "\n";
-    return true;
-}
-
-std::vector<Quiz> getQuizzesByTeacher(int teacherId) {
-    std::vector<Quiz> result;
-    for (const auto& q : loadQuizzes())
-        if (q.teacherId == teacherId) result.push_back(q);
-    return result;
-}
-
 Quiz findQuizById(int quizId) {
-    for (const auto& q : loadQuizzes())
-        if (q.id == quizId) return q;
-    Quiz notFound; notFound.id = -1; return notFound;
-}
+    Quiz q;
+    q.id = -1;
+    string query = "SELECT id, title, teacher_id, duration_minutes, createdDate FROM quizzes WHERE id = " + to_string(quizId);
 
+    if (mysql_query(conn, query.c_str())) return q;
+
+    MYSQL_RES* res = mysql_store_result(conn);
+    if (res) {
+        MYSQL_ROW row = mysql_fetch_row(res);
+        if (row) {
+            q.id = stoi(row[0]);
+            q.title = row[1];
+            q.teacherId = stoi(row[2]);
+            q.durationMinutes = stoi(row[3]);
+            q.createdDate = row[4] ? row[4] : "";
+        }
+        mysql_free_result(res);
+    }
+    return q;
+}
 
 // ---- Question ----
 
-std::vector<Question> loadQuestions() {
-    std::vector<Question> questions;
-    std::ifstream f(FILE_QUESTIONS);
-    if (!f.is_open()) return questions;
-    std::string line;
-    std::getline(f, line);
-    while (std::getline(f, line)) {
-        if (line.empty()) continue;
-        auto col = splitCSV(line);
-        if (col.size() < 8) continue;
-        Question q;
-        q.id = std::stoi(col[0]); q.quizId = std::stoi(col[1]);
-        q.content = col[2]; q.optionA = col[3]; q.optionB = col[4];
-        q.optionC = col[5]; q.optionD = col[6];
-        q.correctAnswer = col[7].empty() ? 'A' : col[7][0];
-        questions.push_back(q);
+bool addQuestion(const Question& q) {
+    string query = "INSERT INTO questions (quiz_id,type,content, option_a, option_b, option_c, option_d, correct_answer) VALUES (" +
+        to_string(q.quizId) + ", '" + 
+        q.type + "','" + q.content + "', '" +
+        q.optionA + "', '" + q.optionB + "', '" +
+        q.optionC + "', '" + q.optionD + "', '" +
+        string (1,q.correctAnswer) + "')";
+
+    if (mysql_query(conn, query.c_str())) {
+        cout << "Error adding question: " << mysql_error(conn) << endl;
+        return false;
+    }
+    return true;
+}
+
+vector<Question> getQuestionsByQuiz(int quizId) {
+    vector<Question> questions;
+    string query = "SELECT id, quiz_id, content, option_a, option_b, option_c, option_d, correct_answer FROM questions WHERE quiz_id = " + to_string(quizId);
+
+    if (mysql_query(conn, query.c_str())) return questions;
+
+    MYSQL_RES* res = mysql_store_result(conn);
+    if (res) {
+        MYSQL_ROW row;
+        while ((row = mysql_fetch_row(res))) {
+            Question q;
+            q.id = stoi(row[0]);
+            q.quizId = stoi(row[1]);
+            q.content = row[2];
+            q.optionA = row[3];
+            q.optionB = row[4];
+            q.optionC = row[5];
+            q.optionD = row[6];
+            q.correctAnswer = row[7][0]; // Extract first char
+            questions.push_back(q);
+        }
+        mysql_free_result(res);
     }
     return questions;
 }
 
-bool saveQuestions(const std::vector<Question>& questions) {
-    std::ofstream f(FILE_QUESTIONS);
-    if (!f.is_open()) return false;
-    f << "id,quizId,content,optionA,optionB,optionC,optionD,correctAnswer\n";
-    for (const auto& q : questions)
-        f << q.id << "," << q.quizId << "," << quoteCSV(q.content) << ","
-          << quoteCSV(q.optionA) << "," << quoteCSV(q.optionB) << ","
-          << quoteCSV(q.optionC) << "," << quoteCSV(q.optionD) << ","
-          << q.correctAnswer << "\n";
-    return true;
-}
-
-bool addQuestion(const Question& newQuestion) {
-    Question q = newQuestion;
-    q.id = getNextId(FILE_QUESTIONS);
-    std::ofstream f(FILE_QUESTIONS, std::ios::app);
-    if (!f.is_open()) return false;
-    f << q.id << "," << q.quizId << "," << quoteCSV(q.content) << ","
-      << quoteCSV(q.optionA) << "," << quoteCSV(q.optionB) << ","
-      << quoteCSV(q.optionC) << "," << quoteCSV(q.optionD) << ","
-      << q.correctAnswer << "\n";
-    return true;
-}
-
-std::vector<Question> getQuestionsByQuiz(int quizId) {
-    std::vector<Question> result;
-    for (const auto& q : loadQuestions())
-        if (q.quizId == quizId) result.push_back(q);
-    return result;
-}
-
-
 // ---- Result ----
 
-std::vector<QuizResult> loadResults() {
-    std::vector<QuizResult> results;
-    std::ifstream f(FILE_RESULTS);
-    if (!f.is_open()) return results;
-    std::string line;
-    std::getline(f, line);
-    while (std::getline(f, line)) {
-        if (line.empty()) continue;
-        auto col = splitCSV(line);
-        if (col.size() < 6) continue;
-        QuizResult r;
-        r.studentId = std::stoi(col[0]); r.quizId = std::stoi(col[1]);
-        r.score = std::stof(col[2]); r.totalQuestions = std::stoi(col[3]);
-        r.correctCount = std::stoi(col[4]); r.submittedAt = col[5];
-        results.push_back(r);
+bool addResult(const QuizResult& r) {
+    string query = "INSERT INTO results (student_id, quiz_id, score, total_questions, correct_count, submitted_at) VALUES (" +
+        to_string(r.studentId) + ", " + to_string(r.quizId) + ", " +
+        to_string(r.score) + ", " + to_string(r.totalQuestions) + ", " +
+        to_string(r.correctCount) + ", '" + r.submittedAt + "')";
+
+    if (mysql_query(conn, query.c_str())) {
+        cout << "Error adding result: " << mysql_error(conn) << endl;
+        return false;
+    }
+    return true;
+}
+
+vector<QuizResult> getResultsByStudent(int studentId) {
+    vector<QuizResult> results;
+    string query = "SELECT student_id, quiz_id, score, total_questions, correct_count, submitted_at FROM results WHERE student_id = " + to_string(studentId);
+
+    if (mysql_query(conn, query.c_str())) return results;
+
+    MYSQL_RES* res = mysql_store_result(conn);
+    if (res) {
+        MYSQL_ROW row;
+        while ((row = mysql_fetch_row(res))) {
+            QuizResult r;
+            r.studentId = stoi(row[0]);
+            r.quizId = stoi(row[1]);
+            r.score = stof(row[2]);
+            r.totalQuestions = stoi(row[3]);
+            r.correctCount = stoi(row[4]);
+            r.submittedAt = row[5] ? row[5] : "";
+            results.push_back(r);
+        }
+        mysql_free_result(res);
     }
     return results;
 }
+vector<ClassInfo> getClassesForStudent(int studentId) {
+    vector<ClassInfo> classes;
+    // Join the classes table with the enrollments table to find this specific student's classes
+    string query = "SELECT c.id, c.name FROM classes c JOIN enrollments e ON c.id = e.class_id WHERE e.student_id = " + to_string(studentId);
 
-bool saveResults(const std::vector<QuizResult>& results) {
-    std::ofstream f(FILE_RESULTS);
-    if (!f.is_open()) return false;
-    f << "studentId,quizId,score,totalQuestions,correctCount,submittedAt\n";
-    for (const auto& r : results)
-        f << r.studentId << "," << r.quizId << "," << r.score << ","
-          << r.totalQuestions << "," << r.correctCount << ","
-          << quoteCSV(r.submittedAt) << "\n";
+    if (mysql_query(conn, query.c_str())) return classes;
+
+    MYSQL_RES* res = mysql_store_result(conn);
+    if (res) {
+        MYSQL_ROW row;
+        while ((row = mysql_fetch_row(res))) {
+            ClassInfo c;
+            c.id = stoi(row[0]);
+            c.name = row[1];
+            classes.push_back(c);
+        }
+        mysql_free_result(res);
+    }
+    return classes;
+}
+// --- Class Management Implementation ---
+
+bool createClass(const string& className, const string& passcode) {
+
+    string query =
+        "INSERT INTO classes (name, passcode) VALUES ('" + className + "', '" + passcode + "')";
+
+    if (mysql_query(conn, query.c_str())) {
+        cout << "MySQL Error: " << mysql_error(conn) << endl;
+        return false;
+    }
+
     return true;
 }
 
-bool addResult(const QuizResult& result) {
-    std::ofstream f(FILE_RESULTS, std::ios::app);
-    if (!f.is_open()) return false;
-    f << result.studentId << "," << result.quizId << "," << result.score << ","
-      << result.totalQuestions << "," << result.correctCount << ","
-      << quoteCSV(result.submittedAt) << "\n";
-    return true;
+string inviteStudent(int classId, const string& username) {
+    // 1. Tìm ID c?a h?c sinh
+    string query = "SELECT id FROM users WHERE username = '" + username + "' AND role = 'student'";
+    if (mysql_query(conn, query.c_str()) != 0) return "Lỗi CSDL.";
+
+    MYSQL_RES* result = mysql_store_result(conn);
+    if (!result) return "Không tìm thấy học sinh này.";
+
+    MYSQL_ROW row = mysql_fetch_row(result);
+    if (!row) {
+        mysql_free_result(result);
+        return "Tài khoản không tồn tại";
+    }
+
+    string studentId = row[0];
+    mysql_free_result(result);
+
+    // 2. Thêm vào l?p
+    string insert_query = "INSERT IGNORE INTO enrollments (student_id, class_id) VALUES (" + studentId + ", " + to_string(classId) + ")";
+    mysql_query(conn, insert_query.c_str());
+
+    // 3. G?i thông báo
+    string msg = "Giáo viên đã thêm bạn vào lớp có ID: " + to_string(classId);
+    string notif_query = "INSERT INTO notifications (student_id, message) VALUES (" + studentId + ", '" + msg + "')";
+    mysql_query(conn, notif_query.c_str());
+
+    return "Thành công!";
+
 }
 
-std::vector<QuizResult> getResultsByStudent(int studentId) {
-    std::vector<QuizResult> result;
-    for (const auto& r : loadResults())
-        if (r.studentId == studentId) result.push_back(r);
-    return result;
+string joinClass(int studentId, int classId, const string& passcode) {
+    // Ki?m tra passcode c?a l?p
+    string query = "SELECT passcode FROM classes WHERE id = " + to_string(classId);
+    if (mysql_query(conn, query.c_str()) != 0) return "L?i h? th?ng.";
+
+    MYSQL_RES* result = mysql_store_result(conn);
+    if (!result) return "Lớp học không tồn tại.";
+
+    MYSQL_ROW row = mysql_fetch_row(result);
+    if (!row) {
+        mysql_free_result(result);
+        return "Lớp học không tồn tại.";
+    }
+
+    string correctPasscode = row[0] ? row[0] : "";
+    mysql_free_result(result);
+
+    if (correctPasscode != passcode) return "Mã tham gia không chính xác!";
+
+    // Thêm vào lớp
+    string insert_query = "INSERT IGNORE INTO enrollments (student_id, class_id) VALUES (" + to_string(studentId) + ", " + to_string(classId) + ")";
+    mysql_query(conn, insert_query.c_str());
+
+    return "Tham gia lớp thành công!";
+}
+// thông báo
+vector<Notification> getNotificationsForStudent(int studentId) {
+    vector<Notification> list;
+    string query = "SELECT id, message, created_at FROM notifications WHERE student_id = " + to_string(studentId) + " ORDER BY created_at DESC";
+    if (mysql_query(conn, query.c_str()) != 0) return list;
+
+    MYSQL_RES* res = mysql_store_result(conn);
+    if (res) {
+        MYSQL_ROW row;
+        while ((row = mysql_fetch_row(res))) {
+            list.push_back({ stoi(row[0]), row[1], row[2] });
+        }
+        mysql_free_result(res);
+    }
+    return list;
+}
+// --- Thêm hàm này vào cuối file data_manager.cpp ---
+
+bool assignQuizToClass(int classId, int quizId) {
+    string query =
+        "INSERT INTO class_quizzes (class_id, quiz_id) VALUES (" +
+        to_string(classId) + ", " +
+        to_string(quizId) + ")";
+
+    return mysql_query(conn, query.c_str()) == 0;
+}
+Quiz findQuizByClassId(int classId) {
+    Quiz q;
+    q.id = -1; // Default: Not found
+
+    // Query to cross the bridge from Class -> class_quizzes -> Quizzes
+    string query = "SELECT q.id, q.title, q.duration_minutes FROM quizzes q "
+                   "JOIN class_quizzes cq ON q.id = cq.quiz_id "
+                   "WHERE cq.class_id = " + to_string(classId) + 
+                   " ORDER BY q.id DESC LIMIT 1"; // Gets the most recently assigned quiz
+
+    if (mysql_query(conn, query.c_str())) {
+        cout << "Error finding quiz: " << mysql_error(conn) << endl;
+        return q;
+    }
+
+    MYSQL_RES* res = mysql_store_result(conn);
+    if (res) {
+        MYSQL_ROW row = mysql_fetch_row(res);
+        if (row) {
+            q.id = stoi(row[0]);
+            q.title = row[1];
+            q.durationMinutes = stoi(row[2]);
+        }
+        mysql_free_result(res);
+    }
+    return q;
 }
