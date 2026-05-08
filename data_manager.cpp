@@ -267,7 +267,6 @@ bool createClass(const string& className, const string& passcode) {
 }
 
 string inviteStudent(int classId, const string& username) {
-    // 1. Tìm ID c?a h?c sinh
     string query = "SELECT id FROM users WHERE username = '" + username + "' AND role = 'student'";
     if (mysql_query(conn, query.c_str()) != 0) return "Lỗi CSDL.";
 
@@ -283,11 +282,9 @@ string inviteStudent(int classId, const string& username) {
     string studentId = row[0];
     mysql_free_result(result);
 
-    // 2. Thêm vào l?p
     string insert_query = "INSERT IGNORE INTO enrollments (student_id, class_id) VALUES (" + studentId + ", " + to_string(classId) + ")";
     mysql_query(conn, insert_query.c_str());
 
-    // 3. G?i thông báo
     string msg = "Giáo viên đã thêm bạn vào lớp có ID: " + to_string(classId);
     string notif_query = "INSERT INTO notifications (student_id, message) VALUES (" + studentId + ", '" + msg + "')";
     mysql_query(conn, notif_query.c_str());
@@ -297,7 +294,6 @@ string inviteStudent(int classId, const string& username) {
 }
 
 string joinClass(int studentId, int classId, const string& passcode) {
-    // Ki?m tra passcode c?a l?p
     string query = "SELECT passcode FROM classes WHERE id = " + to_string(classId);
     if (mysql_query(conn, query.c_str()) != 0) return "L?i h? th?ng.";
 
@@ -315,13 +311,11 @@ string joinClass(int studentId, int classId, const string& passcode) {
 
     if (correctPasscode != passcode) return "Mã tham gia không chính xác!";
 
-    // Thêm vào lớp
     string insert_query = "INSERT IGNORE INTO enrollments (student_id, class_id) VALUES (" + to_string(studentId) + ", " + to_string(classId) + ")";
     mysql_query(conn, insert_query.c_str());
 
     return "Tham gia lớp thành công!";
 }
-// thông báo
 vector<Notification> getNotificationsForStudent(int studentId) {
     vector<Notification> list;
     string query = "SELECT id, message, created_at FROM notifications WHERE student_id = " + to_string(studentId) + " ORDER BY created_at DESC";
